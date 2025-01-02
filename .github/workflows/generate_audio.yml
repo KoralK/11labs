@@ -1,0 +1,82 @@
+name: Generate Audio and Upload to Dropbox
+
+on:
+  workflow_dispatch: # Manually triggered workflow
+
+jobs:
+  generate-audio:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Checkout the repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # 2. Set up Python environment
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+
+    # 3. Install dependencies
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests dropbox
+
+    # 4. Generate audio using ElevenLabs API
+    - name: Generate Audio
+      id: generate_audio
+      run: |
+        import requests
+        import os
+
+        # ElevenLabs API details
+        API_URL = "https://api.elevenlabs.io/v1/text-to-speech/oWAxZDx7w5VEj9dCyTzz"
+        API_KEY = os.environ["ELEVEN_API_KEY"]  # Retrieve API key from environment variable
+
+        # Payload for the request
+        payload = {
+          "text": "Hello from GitHub Actions!"
+        }
+
+        # Headers for the request
+        headers = {
+          "xi-api-key": API_KEY,
+          "Content-Type": "application/json"
+        }
+
+        # Send POST request
+        response = requests.post(API_URL, json=payload, headers=headers)
+
+        # Save the audio file locally
+        if response.status_code == 200:
+          with open("GeneratedAudio.mp3", "wb") as f:
+            f.write(response.content)
+          print("Audio generated successfully!")
+        else:
+          print(f"Failed to generate audio: {response.status_code}, {response.text}")
+          exit(1)
+
+    # 5. Upload to Dropbox
+    - name: Upload to Dropbox
+      run: |
+        import dropbox
+        import os
+
+        # Dropbox API details
+        ACCESS_TOKEN = os.environ["DROPBOX_ACCESS_TOKEN"]  # Retrieve access token from environment variable
+        DROPBOX_PATH = "/n8n_audio_uploads/GeneratedAudio.mp3"
+
+        # Initialize Dropbox client
+        dbx = dropbox.Dropbox(ACCESS_TOKEN)
+
+        # Upload the file
+        with open("GeneratedAudio.mp3", "rb") as f:
+          dbx.files_upload(f.read(), DROPBOX_PATH, mode=dropbox.files.WriteMode.overwrite)
+          print("File uploaded to Dropbox successfully!")
+
+    # Pass environment secrets to the steps
+    env:
+      ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
+      DROPBOX_ACCESS_TOKEN: ${{ secrets.DROPBOX_ACCESS_TOKEN }}
